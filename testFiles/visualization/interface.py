@@ -73,6 +73,7 @@ class EventViewer(QMainWindow):
             n = len(arrays[next(iter(arrays))])
         else:
             n = 0
+
         events: list[Event] = []
         thr = {
             "c_offset": 0,
