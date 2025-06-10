@@ -57,7 +57,9 @@ class EventViewer(QMainWindow):
         extra = ["run", "event", "run_n", "event_n"]
         with uproot.open(rootfile) as f:
             tree = f["EventTree"]
-            arrays = tree.arrays(branches + extra, library="np")
+            available = tree.arrays(branches + extra, library = "np")
+            to_read = [br for br in branches + extra if br in available]
+            arrays = tree.arrays(to_read, library="np")
         n = len(arrays[branches[0]]) if branches else 0
         events: list[Event] = []
         thr = {
