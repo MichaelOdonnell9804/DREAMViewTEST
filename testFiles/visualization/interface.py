@@ -206,8 +206,9 @@ class EventViewer(QMainWindow):
         self._face_ax.clear()
         self._geom.draw_face(self._face_ax, show_grid=False)
         im2 = self._face_ax.imshow(np.ma.masked_equal(fm, 0.0), cmap="viridis", origin="upper", alpha=0.8)
-        if hasattr(self, "_cbar"):
-            self._cbar.remove()
+        cbar = getattr(self, "_cbar", None)
+        if cbar is not None and cbar.ax is not None:
+            cbar.remove()
         self._cbar = self._face_canvas.figure.colorbar(im2, ax=self._face_ax, pad=0.02)
 
         for t in self._text_artists:
