@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QSlider,
@@ -40,8 +41,11 @@ class EventViewer(QMainWindow):
         self.setWindowTitle("DREAMView")
 
         self._geom = geom
-        self._events = self._load_events(rootfile)
-        self._event_count = len(self._events)
+        self._rootfile = Path(rootfile)
+        self._file = uproot.open(self._rootfile)
+        self._tree = self._file["EventTree"]
+        self._event_count = self._tree.num_entries
+        self._events: dict[int, Event] = {}
         self._index = 0
 
         self._timer = QTimer(self)
@@ -52,29 +56,17 @@ class EventViewer(QMainWindow):
             self._update_event(0)
 
     # ------------------------------------------------------------------ loading
-    def _load_events(self, rootfile: Path) -> list[Event]:
+    def _load_event(self, idx: int) -> Event | None:
+        if idx < 0 or idx >= self._event_count:
+            return None
+        if idx in self._events:
+            return self._events[idx]
+
         branches = [f"FERS_Board{b}_energyHG" for b in BOARD_TO_MODULES.keys()]
         extra = ["run", "event", "run_n", "event_n"]
-        with uproot.open(rootfile) as f:
-            tree = f["EventTree"]
+        to_read = [br for br in branches + extra if br in self._tree]
+        arrays = self._tree.arrays(to_read, entry_start=idx, entry_stop=idx + 1, library="np") if to_read else {}
 
-            # uproot allows membership testing directly on the tree which
-            # correctly handles any branch name encoding. Filter the list of
-            # desired branches against the tree to avoid KeyErrors when a ROOT
-            # file doesn't contain optional branches like ``run`` or ``event``.
-            to_read = [br for br in branches + extra if br in tree]
-
-            arrays = tree.arrays(to_read, library="np") if to_read else {}
-
-        if arrays:
-            # Determine how many events are available using the first returned
-            # branch.  If no energy branches were read, ``arrays`` will be empty
-            # and ``n`` falls back to ``0``.
-            n = len(arrays[next(iter(arrays))])
-        else:
-            n = 0
-
-        events: list[Event] = []
         thr = {
             "c_offset": 0,
             "s_offset": 0,
@@ -83,16 +75,16 @@ class EventViewer(QMainWindow):
             "nhitmin_c": 0,
             "nhitmin_s": 0,
         }
-        for i in range(n):
-            edict = {bn: arrays[bn][i] for bn in branches if bn in arrays}
-            runarr = arrays.get("run_n", arrays.get("run"))
-            eventarr = arrays.get("event_n", arrays.get("event"))
-            edict["run_n"] = int(runarr[i]) if runarr is not None else 0
-            edict["event_n"] = int(eventarr[i]) if eventarr is not None else i
-            entry = SimpleNamespace(**edict)
-            ev = Event.from_root_entry(entry, thr, self._geom)
-            events.append(ev)
-        return events
+
+        edict = {bn: arrays[bn][0] for bn in branches if bn in arrays}
+        runarr = arrays.get("run_n", arrays.get("run"))
+        eventarr = arrays.get("event_n", arrays.get("event"))
+        edict["run_n"] = int(runarr[0]) if runarr is not None else 0
+        edict["event_n"] = int(eventarr[0]) if eventarr is not None else idx
+        entry = SimpleNamespace(**edict)
+        ev = Event.from_root_entry(entry, thr, self._geom)
+        self._events[idx] = ev
+        return ev
 
     # ------------------------------------------------------------------ UI ----
     def _setup_ui(self):
@@ -123,6 +115,14 @@ class EventViewer(QMainWindow):
         self._slider.setMaximum(max(self._event_count - 1, 0))
         layout.addWidget(self._slider)
 
+        search = QHBoxLayout()
+        self._search_box = QLineEdit()
+        self._search_box.setPlaceholderText("Event #")
+        self._goto_btn = QPushButton("Go")
+        search.addWidget(self._search_box)
+        search.addWidget(self._goto_btn)
+        layout.addLayout(search)
+
         self._info = QLabel()
         layout.addWidget(self._info)
 
@@ -132,6 +132,7 @@ class EventViewer(QMainWindow):
         self._next_btn.clicked.connect(self.next_event)
         self._play_btn.clicked.connect(self.toggle_play)
         self._slider.valueChanged.connect(self._update_event)
+        self._goto_btn.clicked.connect(self.goto_event)
 
     # ----------------------------------------------------------------- Logic --
     def toggle_play(self):
@@ -143,7 +144,7 @@ class EventViewer(QMainWindow):
             self._play_btn.setText("Pause")
 
     def prev_event(self):
-        if not self._events:
+        if self._event_count == 0:
             return
         self._index = (self._index - 1) % self._event_count
         self._slider.blockSignals(True)
@@ -152,7 +153,7 @@ class EventViewer(QMainWindow):
         self._update_event(self._index)
 
     def next_event(self):
-        if not self._events:
+        if self._event_count == 0:
             return
         self._index = (self._index + 1) % self._event_count
         self._slider.blockSignals(True)
@@ -160,11 +161,27 @@ class EventViewer(QMainWindow):
         self._slider.blockSignals(False)
         self._update_event(self._index)
 
+    def goto_event(self):
+        if self._event_count == 0:
+            return
+        text = self._search_box.text()
+        if not text.isdigit():
+            return
+        idx = int(text) - 1
+        if idx < 0 or idx >= self._event_count:
+            return
+        self._slider.blockSignals(True)
+        self._slider.setValue(idx)
+        self._slider.blockSignals(False)
+        self._update_event(idx)
+
     def _update_event(self, idx: int):
-        if not self._events:
+        if self._event_count == 0:
             return
         self._index = int(idx)
-        ev = self._events[self._index]
+        ev = self._load_event(self._index)
+        if ev is None:
+            return
 
         # ----- board view -----
         bm = ev.full_map
