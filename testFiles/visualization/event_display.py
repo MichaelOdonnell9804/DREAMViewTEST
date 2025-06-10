@@ -56,6 +56,15 @@ def display_event(root_file: Path, branch: str, event: int = 0):
     fig, ax = plt.subplots(figsize=(8, 6))
     geom.draw_face(ax)
     sc = ax.scatter(xs, ys, c=vals, cmap="viridis", s=80, marker="s")
+    cmap = sc.get_cmap()
+    vmin, vmax = sc.get_clim()
+    texts = []
+    for x, y, v in zip(xs, ys, vals):
+        rgba = cmap((v - vmin) / (vmax - vmin + 1e-8))
+        lum = 0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]
+        txt_color = "white" if lum < 0.5 else "black"
+        texts.append(ax.text(x, y, f"{int(v)}", ha="center", va="center",
+                             fontsize=6, color=txt_color))
     ax.set_title(f"Event {event} : {branch}")
     plt.colorbar(sc, ax=ax, label="Energy")
     plt.show()
