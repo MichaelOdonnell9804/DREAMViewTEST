@@ -75,7 +75,7 @@ def build_map_FERSs_ixy():
     map_ixy_FERS5 = {}
     for ifers, (ix, iy) in map_ixy_FERS1.items():
         map_ixy_FERS2[ifers] = (ix-4, iy)
-        map_ixy_FERS3[ifers] = (ix-8, iy-4)
+        map_ixy_FERS3[ifers] = (ix-8, iy)
         map_ixy_FERS4[ifers] = (ix-12, iy)
         map_ixy_FERS5[ifers] = (ix-16, iy)
 
