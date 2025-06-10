@@ -20,12 +20,12 @@ energy deposits stored in ROOT files on top of the detector face layout.
    ```
 3. Display a specific event from a ROOT file:
    ```bash
-   python -m testFiles.visualization.event_display mydata.root BRANCH_NAME --event 0
+   python -m testFiles.visualization.event_display mydata.root 0
    ```
 4. Launch the interactive viewer to browse events:
    ```bash
-   python -m testFiles.visualization.interface mydata.root BRANCH_NAME
+   python -m testFiles.visualization.interface mydata.root
    ```
 
-Replace `BRANCH_NAME` with the name of the branch containing the per-channel
+Replace `EVENT_NUMBER` with the desired event identifier. The interactive viewer
 energies or charges.
