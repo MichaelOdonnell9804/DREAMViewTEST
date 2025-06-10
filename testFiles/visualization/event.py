@@ -26,7 +26,6 @@ Usage:
 
 import re
 import os
-import ROOT
 import json
 import numpy as np
 from scipy.stats import linregress
@@ -231,6 +230,11 @@ class EventProcessor:
     def __init__(self, rootfile: str, order: str = Event.DEFAULT_ORDER):
         if not os.path.exists(rootfile):
             raise FileNotFoundError(f"ROOT file not found: {rootfile}")
+
+        # Import ROOT lazily so modules that only need :class:`Event` don't
+        # require a full PyROOT installation.
+        import ROOT
+
         self.rootfile = rootfile
         self.order = order
         self._root_f = ROOT.TFile.Open(rootfile, "READ")

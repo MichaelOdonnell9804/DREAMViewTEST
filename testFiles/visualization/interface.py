@@ -57,8 +57,22 @@ class EventViewer(QMainWindow):
         extra = ["run", "event", "run_n", "event_n"]
         with uproot.open(rootfile) as f:
             tree = f["EventTree"]
-            arrays = tree.arrays(branches + extra, library="np")
-        n = len(arrays[branches[0]]) if branches else 0
+
+            # uproot allows membership testing directly on the tree which
+            # correctly handles any branch name encoding. Filter the list of
+            # desired branches against the tree to avoid KeyErrors when a ROOT
+            # file doesn't contain optional branches like ``run`` or ``event``.
+            to_read = [br for br in branches + extra if br in tree]
+
+            arrays = tree.arrays(to_read, library="np") if to_read else {}
+
+        if arrays:
+            # Determine how many events are available using the first returned
+            # branch.  If no energy branches were read, ``arrays`` will be empty
+            # and ``n`` falls back to ``0``.
+            n = len(arrays[next(iter(arrays))])
+        else:
+            n = 0
         events: list[Event] = []
         thr = {
             "c_offset": 0,
